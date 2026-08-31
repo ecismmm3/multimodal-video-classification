@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ontology Tree Explorer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#12161B;
+    --panel:#1A2028;
+    --panel-border:#293241;
+    --amber:#E8A33D;
+    --teal:#4FD1C5;
+    --text:#E8E6E1;
+    --muted:#8891A0;
+    --link:#3A4453;
+    --danger:#D9695F;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%; background:var(--bg); color:var(--text);
+    font-family:'Inter',sans-serif; overflow:hidden;
+  }
+  #app{ position:relative; width:100vw; height:100vh; }
+
+  /* background oscilloscope grid */
+  #grid{
+    position:absolute; inset:0;
+    background-image:
+      linear-gradient(to right, rgba(255,255,255,0.035) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255,255,255,0.035) 1px, transparent 1px);
+    background-size: 32px 32px;
+    pointer-events:none;
+  }
+
+  svg{ width:100%; height:100%; display:block; cursor:grab; }
+  svg:active{ cursor:grabbing; }
+
+  .link{ fill:none; stroke:var(--link); stroke-width:1.4; }
+  .link.hit{ stroke:var(--amber); stroke-width:2; }
+
+  .node circle{
+    stroke-width:2; cursor:pointer;
+  }
+  .node text.name{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:600;
+    font-size:12.5px;
+    fill:var(--text);
+    pointer-events:none;
+  }
+  .node text.id{
+    font-family:'JetBrains Mono',monospace;
+    font-size:9.5px;
+    fill:var(--muted);
+    pointer-events:none;
+  }
+  .node text.count{
+    font-family:'JetBrains Mono',monospace;
+    font-size:9px;
+    fill:var(--bg);
+    font-weight:500;
+    pointer-events:none;
+  }
+  .node.hit text.name{ fill:var(--amber); }
+  .node.dim{ opacity:0.22; }
+  .node.dim ~ .node.dim{}
+
+  /* Top bar */
+  #topbar{
+    position:absolute; top:0; left:0; right:0;
+    display:flex; align-items:center; gap:14px;
+    padding:14px 20px;
+    background:linear-gradient(to bottom, rgba(18,22,27,0.95), rgba(18,22,27,0));
+    z-index:10;
+    pointer-events:none;
+  }
+  #topbar > *{ pointer-events:auto; }
+  #title{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700; font-size:16px; letter-spacing:0.2px;
+    display:flex; align-items:center; gap:8px;
+  }
+  #title .dot{ width:8px; height:8px; border-radius:50%; background:var(--amber); box-shadow:0 0 8px var(--amber); }
+  #title small{ color:var(--muted); font-weight:400; font-size:11.5px; font-family:'Inter',sans-serif; }
+
+  .btn{
+    background:var(--panel); border:1px solid var(--panel-border); color:var(--text);
+    font-family:'Inter',sans-serif; font-size:12.5px; font-weight:500;
+    padding:8px 13px; border-radius:7px; cursor:pointer; white-space:nowrap;
+    transition:border-color .15s, background .15s;
+  }
+  .btn:hover{ border-color:var(--amber); background:#1E2530; }
+  .btn:active{ transform:translateY(1px); }
+  #fileInput{ display:none; }
+
+  #search{
+    background:var(--panel); border:1px solid var(--panel-border); color:var(--text);
+    font-family:'Inter',sans-serif; font-size:12.5px;
+    padding:8px 12px; border-radius:7px; width:220px; outline:none;
+  }
+  #search::placeholder{ color:var(--muted); }
+  #search:focus{ border-color:var(--teal); }
+
+  #stats{
+    margin-left:auto;
+    font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted);
+    display:flex; gap:14px;
+  }
+  #stats b{ color:var(--teal); font-weight:500; }
+
+  /* Empty state */
+  #empty{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:16px; text-align:center; z-index:5;
+  }
+  #empty h1{
+    font-family:'Space Grotesk',sans-serif; font-size:28px; font-weight:700; margin:0;
+  }
+  #empty p{ color:var(--muted); font-size:13.5px; max-width:420px; margin:0; line-height:1.6; }
+  #empty .btn{ padding:11px 22px; font-size:13.5px; border-color:var(--amber); }
+
+  /* Tooltip / detail panel */
+  #detail{
+    position:absolute; bottom:20px; right:20px; width:320px; max-height:44vh;
+    background:var(--panel); border:1px solid var(--panel-border); border-radius:10px;
+    padding:16px 18px; z-index:10; display:none; overflow-y:auto;
+    box-shadow:0 8px 30px rgba(0,0,0,0.4);
+  }
+  #detail.show{ display:block; }
+  #detail h2{
+    font-family:'Space Grotesk',sans-serif; font-size:15px; margin:0 0 4px 0; color:var(--amber);
+  }
+  #detail .idline{
+    font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--teal); margin-bottom:10px;
+  }
+  #detail p{ font-size:12.5px; line-height:1.55; color:var(--text); margin:0 0 10px 0; }
+  #detail .meta{ font-size:11px; color:var(--muted); display:flex; flex-direction:column; gap:4px; }
+  #detail .badge{
+    display:inline-block; font-family:'JetBrains Mono',monospace; font-size:10px;
+    background:#2A2117; color:var(--amber); border:1px solid #4A3A22;
+    padding:2px 7px; border-radius:5px; margin-right:5px;
+  }
+  #detail .close{
+    position:absolute; top:12px; right:14px; cursor:pointer; color:var(--muted); font-size:16px;
+    background:none; border:none;
+  }
+  #detail .close:hover{ color:var(--text); }
+
+  /* Legend */
+  #legend{
+    position:absolute; bottom:20px; left:20px; z-index:10;
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--muted);
+    background:var(--panel); border:1px solid var(--panel-border); border-radius:8px;
+    padding:10px 14px; display:flex; gap:14px; align-items:center;
+  }
+  #legend .sw{ display:inline-flex; align-items:center; gap:6px; }
+  #legend .c{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="grid"></div>
+
+  <div id="empty">
+    <h1>Ontology Tree Explorer</h1>
+    <p>Load a JSON file (array of nodes with <b>id</b>, <b>name</b>, <b>child_ids</b>) to render the full hierarchy as an interactive, zoomable tree.</p>
+    <button class="btn" onclick="document.getElementById('fileInput').click()">Load JSON file</button>
+  </div>
+
+  <div id="topbar" style="display:none;">
+    <div id="title"><span class="dot"></span>Ontology Explorer <small id="fname"></small></div>
+    <button class="btn" onclick="document.getElementById('fileInput').click()">Load new file</button>
+    <button class="btn" id="expandAllBtn">Expand all</button>
+    <button class="btn" id="collapseAllBtn">Collapse all</button>
+    <button class="btn" id="resetViewBtn">Reset view</button>
+    <input id="search" placeholder="Search name or ID...">
+    <div id="stats"></div>
+  </div>
+
+  <input type="file" id="fileInput" accept="application/json,.json">
+
+  <div id="legend" style="display:none;">
+    <div class="sw"><span class="c" style="background:var(--teal)"></span>has children</div>
+    <div class="sw"><span class="c" style="background:var(--muted)"></span>leaf</div>
+    <div class="sw"><span class="c" style="background:var(--amber)"></span>search match</div>
+  </div>
+
+  <div id="detail">
+    <button class="close" onclick="document.getElementById('detail').classList.remove('show')">&times;</button>
+    <h2 id="d-name"></h2>
+    <div class="idline" id="d-id"></div>
+    <p id="d-desc"></p>
+    <div class="meta" id="d-meta"></div>
+  </div>
+</div>
+
+<script>
+let svg, g, zoomBehavior, root, treeLayout;
+let nodeIndex = {};   // id -> raw record
+let rootData = null;  // hierarchical data fed to d3
+const width = () => window.innerWidth;
+const height = () => window.innerHeight;
+let nodeIdCounter = 0;
+
+document.getElementById('fileInput').addEventListener('change', function(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(evt){
+    try{
+      const data = JSON.parse(evt.target.result);
+      document.getElementById('fname').textContent = '— ' + file.name;
+      buildFromRecords(data);
+    }catch(err){
+      alert('Could not parse JSON: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+});
+
+function buildFromRecords(records){
+  if(!Array.isArray(records)){
+    alert('Expected a JSON array of node records.');
+    return;
+  }
+  nodeIndex = {};
+  records.forEach(r => nodeIndex[r.id] = r);
+
+  const childIdSet = new Set();
+  records.forEach(r => (r.child_ids||[]).forEach(c => childIdSet.add(c)));
+  const rootRecords = records.filter(r => !childIdSet.has(r.id));
+
+  function toHierarchy(rec, visited){
+    if(visited.has(rec.id)){
+      return { name: rec.name + ' (cycle)', id: rec.id, record: rec, children: [] };
+    }
+    visited = new Set(visited); visited.add(rec.id);
+    const kids = (rec.child_ids||[])
+      .map(cid => nodeIndex[cid])
+      .filter(Boolean)
+      .map(child => toHierarchy(child, visited));
+    return { name: rec.name, id: rec.id, record: rec, children: kids.length ? kids : null };
+  }
+
+  let hierarchyRoot;
+  if(rootRecords.length === 1){
+    hierarchyRoot = toHierarchy(rootRecords[0], new Set());
+  } else {
+    hierarchyRoot = {
+      name: 'Ontology',
+      id: '__virtual_root__',
+      record: { name:'Ontology', id:'__virtual_root__', description:`${rootRecords.length} top-level categories`, restrictions:[] },
+      children: rootRecords.map(r => toHierarchy(r, new Set()))
+    };
+  }
+
+  document.getElementById('empty').style.display = 'none';
+  document.getElementById('topbar').style.display = 'flex';
+  document.getElementById('legend').style.display = 'flex';
+
+  renderTree(hierarchyRoot, records.length);
+}
+
+function renderTree(hierarchyData, totalCount){
+  d3.select('#app svg').remove();
+
+  svg = d3.select('#app').insert('svg', '#topbar')
+    .attr('viewBox', [0,0,width(),height()]);
+
+  g = svg.append('g');
+
+  zoomBehavior = d3.zoom()
+    .scaleExtent([0.05, 3])
+    .on('zoom', (event) => g.attr('transform', event.transform));
+  svg.call(zoomBehavior);
+
+  root = d3.hierarchy(hierarchyData, d => d.children);
+  root.x0 = height()/2;
+  root.y0 = 0;
+
+  root.descendants().forEach((d,i) => {
+    d.id = i;
+    d._children = d.children;
+    if(d.depth > 1) d.children = null; // collapse beyond depth 1 by default
+  });
+
+  treeLayout = d3.tree().nodeSize([34, 240]);
+
+  update(root);
+  centerOnRoot();
+  updateStats(totalCount);
+
+  document.getElementById('search').oninput = function(e){ doSearch(e.target.value.trim().toLowerCase()); };
+  document.getElementById('expandAllBtn').onclick = () => { expandAll(root); update(root); };
+  document.getElementById('collapseAllBtn').onclick = () => { collapseAll(root); update(root); root.children = root._children; update(root); };
+  document.getElementById('resetViewBtn').onclick = centerOnRoot;
+}
+
+function expandAll(d){
+  if(d._children){ d.children = d._children; d.children.forEach(expandAll); }
+}
+function collapseAll(d){
+  if(d.children){ d.children.forEach(collapseAll); d._children = d.children; d.children = null; }
+}
+
+function centerOnRoot(){
+  const t = d3.zoomIdentity.translate(80, height()/2).scale(0.85);
+  svg.transition().duration(500).call(zoomBehavior.transform, t);
+}
+
+function colorFor(d){
+  if(d.data.id === '__virtual_root__') return 'var(--amber)';
+  return d._children ? 'var(--teal)' : 'var(--muted)';
+}
+
+function update(source){
+  const duration = 350;
+  const nodes = root.descendants();
+  const links = root.links();
+
+  treeLayout(root);
+
+  // normalize y (depth spacing already handled by nodeSize)
+  nodes.forEach(d => { d.y = d.depth * 240; });
+
+  const node = g.selectAll('g.node')
+    .data(nodes, d => d.id);
+
+  const nodeEnter = node.enter().append('g')
+    .attr('class','node')
+    .attr('transform', d => `translate(${source.y0},${source.x0})`)
+    .on('click', (event,d) => {
+      if(d.children){ d._children = d.children; d.children = null; }
+      else if(d._children){ d.children = d._children; d._children = null; }
+      update(d);
+    })
+    .on('mouseenter', (event,d) => showDetail(d))
+    ;
+
+  nodeEnter.append('circle')
+    .attr('r', 1e-6)
+    .attr('fill', d => (d._children||d.children) ? '#1A2028' : colorFor(d))
+    .attr('stroke', d => colorFor(d));
+
+  nodeEnter.append('text')
+    .attr('class','count')
+    .attr('text-anchor','middle')
+    .attr('dy','3px')
+    .text(d => d._children ? d._children.length : (d.children ? d.children.length : ''));
+
+  nodeEnter.append('text')
+    .attr('class','name')
+    .attr('x', d => (d._children||d.children) ? 14 : 12)
+    .attr('dy','-2px')
+    .text(d => d.data.name);
+
+  nodeEnter.append('text')
+    .attr('class','id')
+    .attr('x', d => (d._children||d.children) ? 14 : 12)
+    .attr('dy','12px')
+    .text(d => d.data.id);
+
+  const nodeUpdate = nodeEnter.merge(node);
+  nodeUpdate.transition().duration(duration)
+    .attr('transform', d => `translate(${d.y},${d.x})`);
+  nodeUpdate.select('circle')
+    .attr('r', d => (d.data.id==='__virtual_root__') ? 9 : 6)
+    .attr('fill', d => (d._children||d.children) ? '#1A2028' : colorFor(d))
+    .attr('stroke', d => colorFor(d));
+  nodeUpdate.select('text.count')
+    .attr('opacity', d => (d._children) ? 1 : 0);
+
+  const nodeExit = node.exit().transition().duration(duration)
+    .attr('transform', d => `translate(${source.y},${source.x})`)
+    .remove();
+  nodeExit.select('circle').attr('r', 1e-6);
+  nodeExit.selectAll('text').style('opacity', 1e-6);
+
+  const link = g.selectAll('path.link')
+    .data(links, d => d.target.id);
+
+  const linkEnter = link.enter().insert('path','g')
+    .attr('class','link')
+    .attr('d', d => {
+      const o = {x: source.x0, y: source.y0};
+      return diagonal(o,o);
+    });
+
+  linkEnter.merge(link).transition().duration(duration)
+    .attr('d', d => diagonal(d.source, d.target));
+
+  link.exit().transition().duration(duration)
+    .attr('d', d => {
+      const o = {x: source.x, y: source.y};
+      return diagonal(o,o);
+    })
+    .remove();
+
+  nodes.forEach(d => { d.x0 = d.x; d.y0 = d.y; });
+}
+
+function diagonal(s,d){
+  return `M ${s.y} ${s.x} C ${(s.y+d.y)/2} ${s.x}, ${(s.y+d.y)/2} ${d.x}, ${d.y} ${d.x}`;
+}
+
+function showDetail(d){
+  const rec = d.data.record || {};
+  document.getElementById('d-name').textContent = rec.name || d.data.name;
+  document.getElementById('d-id').textContent = rec.id || d.data.id;
+  document.getElementById('d-desc').textContent = rec.description || '(no description)';
+  const meta = [];
+  if(rec.restrictions && rec.restrictions.length) meta.push(rec.restrictions.map(r => `<span class="badge">${r}</span>`).join(' '));
+  meta.push(`depth: ${d.depth}`);
+  meta.push(`children: ${(d._children||d.children||[]).length}`);
+  document.getElementById('d-meta').innerHTML = meta.join('<br>');
+  document.getElementById('detail').classList.add('show');
+}
+
+function updateStats(totalCount){
+  const el = document.getElementById('stats');
+  el.innerHTML = `<span><b>${totalCount}</b> nodes</span><span><b>${root.height}</b> max depth</span>`;
+}
+
+function doSearch(q){
+  g.selectAll('g.node').classed('hit', false).classed('dim', false);
+  if(!q){ return; }
+  let matchCount = 0;
+  const matched = [];
+  root.each(d => {
+    const name = (d.data.name||'').toLowerCase();
+    const id = (d.data.id||'').toLowerCase();
+    if(name.includes(q) || id.includes(q)){
+      matched.push(d);
+    }
+  });
+  if(matched.length === 0) return;
+
+  // expand ancestors of matches so they become visible
+  matched.forEach(d => {
+    let p = d.parent;
+    while(p){
+      if(!p.children && p._children){ p.children = p._children; }
+      p = p.parent;
+    }
+  });
+  update(root);
+
+  requestAnimationFrame(() => {
+    g.selectAll('g.node').classed('dim', true);
+    matched.forEach(d => {
+      g.selectAll('g.node').filter(n => n.id === d.id).classed('hit', true).classed('dim', false);
+    });
+    if(matched.length === 1){
+      const t = d3.zoomIdentity.translate(width()/2 - matched[0].y*0.9, height()/2 - matched[0].x*0.9).scale(0.9);
+      svg.transition().duration(500).call(zoomBehavior.transform, t);
+    }
+  });
+}
+
+window.addEventListener('resize', () => {
+  if(svg) svg.attr('viewBox', [0,0,width(),height()]);
+});
+</script>
+</body>
+</html>
