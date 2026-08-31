@@ -38,15 +38,33 @@
 
 * `train.py` - Trains model with your data, saves weights to `classifier.pt`.
 
-* `train_audio.py` - Classifier trained only on audio latents.
+* `train_audio.py` - Classifier trained only on audio latents. Saves weights to `audio_only.pt`  
 
-* `train_video.py` - Classifier trained only on video latents.
+* `train_video.py` - Classifier trained only on video latents. Saves weights to `video_only.pt`
 
 ^ To test which modality had a higher impact on the prediction.
 
 * `predict.py` - Loads `classifier.pt`, predicts on a test `.pt` file.
 
 Usage: `python predict.py path/to/sample.pt`
+
+# Experimental Data
+
+## Overview
+- Goal: Classify between wind and water
+- Trained on clips of windy environments and "watery" conditions
+
+## Training Stats (after 50 epochs)
+
+| Model      | Modalities Used | Test Accuracy |
+| ---------- | --------------- | ------------: |
+| Multimodal | Audio + Video   |     **84.8%** |
+| Video      | Video only      |     **81.8%** |
+| Audio      | Audio only      |     **48.5%** |
+
+**Conclusion:** This specific classification is highly dependent on video, much more than audio. The video latent captures both spatial and temporal information, which is useful for classification, while the audio latent preserves important acoustic information for reconstruction, but is not necessarily good for classification.
+
+**Reasoning:** This could be because you can "see" water in a video, while wind is not directly visible. This makes the visual features of water more distinguishable, and the sounds of wind and water are too similar for the latent to provide consistent information.
 
 # Third-Party Models
 
