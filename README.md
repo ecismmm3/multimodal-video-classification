@@ -41,7 +41,7 @@
 * `combine.py` - combines audio latent, video latent, and label into one `.pt` file
 * `split.py` - splits `.pt` files from both classes randomly at a (80/10/10 train/test/val) split into respective folders
 
-## Training/Predicting (in `scripts/`)
+## Training/Predicting (`scripts/`)
 
 * `train.py` - trains model with your data, saves weights to `classifier.pt`
 
