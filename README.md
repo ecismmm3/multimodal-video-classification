@@ -1,5 +1,18 @@
 # multimodal-video-classification
-small research experiment classifying different categories of videos
+
+- research experiment classifying different categories of videos
+- audio latents extracted from KVAE-Audio
+- video latents extracted from VideoMAE
+- custom classification model trained on combined latents
+
+# Dataset
+- AudioSet (https://research.google.com/audioset/download.html)
+- Download unbalanced_trained_segments.csv for the largest dataset
+
+# Tools
+- Audio Class Hiearchy Generator <insert name>
+- Choose two classes you would like to classify between
+- Save their codes somewhere that you can look back on
 
 ## Third-Party Models
 
