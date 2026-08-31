@@ -1,12 +1,5 @@
 # multimodal-video-classification
 
-# Overview
-
-* Research experiment classifying different categories of videos.
-* Audio latents extracted from `KVAE-Audio`.
-* Video latents extracted from `VideoMAE`.
-* Custom classification model trained on combined latents.
-
 # Downloads
 
 * AudioSet (`https://research.google.com/audioset/download.html`).
