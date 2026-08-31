@@ -45,13 +45,13 @@
 
 * `train.py` - trains model with your data, saves weights to `classifier.pt`
 
-* `predict.py` - loads `classifier.pt`, predicts on a test `.pt` file
-
 * `train_audio.py` - classifier trained only on audio latents
 
 * `train_video.py` - classifier trained only on video latents
 
 ^ To test which modality had a higher impact on the prediction
+
+* `predict.py` - loads `classifier.pt`, predicts on a test `.pt` file
 
 Usage: `python predict.py path/to/sample.pt`
 
