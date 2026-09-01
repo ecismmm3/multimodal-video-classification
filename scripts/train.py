@@ -52,9 +52,7 @@ class WindWaterDataset(Dataset):
         # return x, label
 
 
-# -----------------------------
 # Model
-# -----------------------------
 
 # class WindWaterClassifier(nn.Module):
 
@@ -116,9 +114,7 @@ class WindWaterClassifier(nn.Module):
 
 
 
-# -----------------------------
 # Evaluation
-# -----------------------------
 
 def evaluate(model, loader, device):
 
@@ -158,11 +154,7 @@ def evaluate(model, loader, device):
 
     return correct / total
 
-
-
-# -----------------------------
 # Training
-# -----------------------------
 
 def main():
 
